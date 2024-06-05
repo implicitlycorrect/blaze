@@ -1,0 +1,16 @@
+[package]
+name = "toy-arms_derive"
+version = "0.1.5"
+edition = "2018"
+authors = ["s3pt3mb3r <s3pt3mb3r@protonmail.com>"]
+description = "A derive macro crate for toy-arms"
+license = "MIT"
+keywords = ["gamehack", "cheat", "windows", "memory"]
+repository = "https://github.com/s3pt3mb3r/toy-arms/tree/master/toy-arms_derive"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0.66"
+quote = "1.0.10"

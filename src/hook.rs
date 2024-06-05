@@ -7,7 +7,7 @@ use winapi::{
     shared::minwindef::{DWORD, LPCVOID, LPVOID},
     um::{
         memoryapi::{VirtualProtect, VirtualQuery},
-        winnt::{MEMORY_BASIC_INFORMATION, PAGE_EXECUTE},
+        winnt::{MEMORY_BASIC_INFORMATION, PAGE_EXECUTE, PAGE_EXECUTE_READWRITE},
     },
 };
 
@@ -63,8 +63,8 @@ pub unsafe fn create_hook(target: *mut c_void, detour: *mut c_void) -> Result<*m
         std::mem::size_of::<MEMORY_BASIC_INFORMATION>(),
     );
     let is_executable = is_page_executable(&memory_info);
-    let mut old_protect = PAGE_EXECUTE;
-    let mut new_protect = PAGE_EXECUTE;
+    let mut old_protect = PAGE_EXECUTE_READWRITE;
+    let mut new_protect = PAGE_EXECUTE_READWRITE;
     if !is_executable {
         VirtualProtect(
             target as LPVOID,

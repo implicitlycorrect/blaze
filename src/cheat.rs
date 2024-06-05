@@ -1,14 +1,17 @@
-use std::{ffi::c_void, sync::Mutex};
+use std::{
+    ffi::{c_char, c_void, CStr, CString},
+    sync::Mutex,
+};
 
 use anyhow::{anyhow, Result};
 use winapi::um::winuser::VK_DELETE;
 
 use crate::{
     hook, interfaces, offsets,
-    sdk::{get_virtual_function, CEngineClient, LocalPlayer},
+    sdk::{get_virtual_function, CEngineClient, CSource2Client, LocalPlayer},
 };
 use lazy_static::lazy_static;
-use toy_arms::{keyboard::detect_keypress, module::Module, GameObject};
+use toy_arms::{cast, keyboard::detect_keypress, module::Module, GameObject};
 
 const EXIT_KEY: i32 = VK_DELETE;
 
@@ -16,10 +19,20 @@ lazy_static! {
     static ref CHEAT_CONTEXT: Mutex<CheatContext> = Mutex::new(CheatContext::default());
 }
 
+unsafe fn get_controller_from_handle(entity_list: usize, handle: usize) -> usize {
+    let handle = handle & 0x7FFF;
+    let list_address = entity_list + 0x8 * (handle >> 0x9) + 0x10;
+    let list = *(list_address as *const usize);
+    let controller_address = list + 0x78 * (handle & 0x1FF);
+    let controller = *(controller_address as *const usize);
+    controller
+}
+
 struct CheatContext {
     client_module: Module,
     engine2_module: Module,
-    engine_client: CEngineClient,
+    client_interface: CSource2Client,
+    engine_client_interface: CEngineClient,
 }
 
 impl CheatContext {
@@ -27,15 +40,20 @@ impl CheatContext {
         Self {
             client_module: Module::default(),
             engine2_module: Module::default(),
-            engine_client: CEngineClient::default(),
+            client_interface: CSource2Client::default(),
+            engine_client_interface: CEngineClient::default(),
         }
     }
 
-    unsafe fn get_local_player(&self) -> Option<LocalPlayer> {
-        Some(
+    fn entity_list(&self) -> *mut usize {
+        self.client_module.read(offsets::client::dwEntityList)
+    }
+
+    fn get_local_player(&self) -> Option<LocalPlayer> {
+        Some(unsafe {
             LocalPlayer::from_raw(self.client_module.read(offsets::client::dwLocalPlayerPawn))?
-                .read(),
-        )
+                .read()
+        })
     }
 }
 
@@ -68,59 +86,147 @@ pub fn initialize() -> Result<()> {
         context.engine2_module.base_address
     );
 
-    let module_factory = interfaces::get_factory(context.engine2_module.handle);
-    let Some(source2_engine_to_client_interface) =
-        interfaces::get_interface(module_factory, "Source2EngineToClient001")
-    else {
+    let Some(client_interface) = interfaces::get_interface(
+        interfaces::get_factory(context.client_module.handle),
+        "Source2Client002",
+    ) else {
+        return Err(anyhow!("Failed to get client.Source2Client002 interface"));
+    };
+    context.client_interface.base = client_interface as *mut usize;
+
+    let Some(engine_client_interface) = interfaces::get_interface(
+        interfaces::get_factory(context.engine2_module.handle),
+        "Source2EngineToClient001",
+    ) else {
         return Err(anyhow!(
             "Failed to get engine2.Source2EngineToClient001 interface"
         ));
     };
-    context.engine_client.base = source2_engine_to_client_interface as *mut usize;
+    context.engine_client_interface.base = engine_client_interface as *mut usize;
     println!(
         "Found interface Source2EngineToClient001 at {:#0x}",
-        context.engine_client.base as usize
+        context.engine_client_interface.base as usize
     );
 
     println!("hooking functions!");
     std::thread::sleep(std::time::Duration::from_millis(400));
 
-    let frame_stage_notify_address = get_virtual_function(context.engine_client.base, 36);
+    let Some(set_model_address) = context
+        .client_module
+        .find_pattern("48 89 5C 24 ? 48 89 7C 24 ? 55 48 8B EC 48 83 EC ? 48 8B F9 4C 8B C2")
+    else {
+        return Err(anyhow!(
+            "failed to get address of set model function via provided signature"
+        ));
+    };
 
     unsafe {
-        FRAME_STAGE_NOTIFY = hook::create_hook(
+        let set_model_address = context.client_module.base_address + set_model_address;
+        println!(
+            "found void SetModel(*const char) at {:#0x}",
+            set_model_address
+        );
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        ORIGINAL_SET_MODEL = hook::create_hook(
+            set_model_address as *mut c_void,
+            hook_set_model as *mut c_void,
+        )?;
+        println!("hooked void SetModel(*const char)");
+
+        let frame_stage_notify_address = get_virtual_function(context.client_interface.base, 36);
+        println!(
+            "found void FrameStageNotify(int stage) at {:#0x}",
+            set_model_address
+        );
+
+        ORIGINAL_FRAME_STAGE_NOTIFY = hook::create_hook(
             frame_stage_notify_address as *mut c_void,
             hook_frame_stage_notify as *mut c_void,
         )?;
 
-        println!("hooked frame stage notify");
+        println!(
+            "hooked void FrameStageNotify(int stage) at {:#0x}",
+            set_model_address
+        );
+
+        
     }
 
     hook::enable_hooks()
 }
 
-static mut FRAME_STAGE_NOTIFY: *mut c_void = std::ptr::null_mut();
+static mut ORIGINAL_SET_MODEL: *mut c_void = std::ptr::null_mut();
 
-type FrameStageNotify = extern "fastcall" fn(rcx: *mut c_void, stage: i32);
+unsafe extern "fastcall" fn hook_set_model(rcx: *mut c_void, model: *const c_char) {
+    let original: extern "fastcall" fn(*mut c_void, *const c_char) =
+        std::mem::transmute(ORIGINAL_SET_MODEL);
+    let model_name = CStr::from_ptr(model);
+    let model_name = model_name.to_str().unwrap();
+    println!("{model_name}");
+
+    if model_name == "weapons/models/knife/knife_default_t/weapon_knife_default_t.vmdl" {
+        let new_model =
+            CString::new("weapons/models/knife/knife_butterfly/weapon_knife_butterfly.vmdl")
+                .unwrap();
+        let new_model = new_model.as_ptr();
+        original(rcx, new_model);
+    } else {
+        original(rcx, model);
+    }
+}
+
+const WEAPON_STATE_HELD: i32 = 2;
+
+static mut ORIGINAL_FRAME_STAGE_NOTIFY: *mut c_void = std::ptr::null_mut();
 
 unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32) {
-    let frame_stage_notify: FrameStageNotify = std::mem::transmute(FRAME_STAGE_NOTIFY);
-    if stage == 5 || stage == 6 {
-        let context = CHEAT_CONTEXT.lock().unwrap();
+    let context = CHEAT_CONTEXT.lock().unwrap();
+    let original: extern "fastcall" fn(*mut c_void, i32) = std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
+
+    if (context.engine_client_interface.get_is_in_game() && context.engine_client_interface.get_is_connected()) && (stage == 5 || stage == 6) {
+        // run skin changer
         if let Some(local_player) = context.get_local_player() {
+            let entity_list = context.entity_list() as usize;
+
             if let Some(weapon_services) = local_player.get_weapon_services() {
-                let weapons = weapon_services.get_weapons();
-                for weapon in weapons {}
+                if let Some(weapon_size) = weapon_services.get_weapon_size() {
+                    for index in 0..weapon_size {
+                        let Some(weapon_handle) = weapon_services.get_weapon_handle_at_index(index) else {
+                            continue;
+                        };
+                        let weapon_controller =
+                            get_controller_from_handle(entity_list, weapon_handle);
+                        let weapon_state = *cast!(
+                            weapon_controller + offsets::client::C_CSWeaponBase::m_iState,
+                            i32
+                        );
+                        if weapon_state < WEAPON_STATE_HELD {
+                            continue;
+                        }
+                        // C_EconItemView
+                        let weapon_econ_item_view = weapon_controller
+                            + offsets::client::C_EconEntity::m_AttributeManager
+                            + offsets::client::C_AttributeContainer::m_Item;
+                        let weapon_id = *cast!(
+                            weapon_econ_item_view
+                                + offsets::client::C_EconItemView::m_iItemDefinitionIndex,
+                            i32
+                        );
+                        println!("held weapon id: {weapon_id}");
+                    }
+                }
             }
         }
     }
-    frame_stage_notify(rcx, stage)
+    original(rcx, stage);
 }
 
-pub unsafe fn run() {
+pub fn run() {
     while !detect_keypress(EXIT_KEY) {
         let context = CHEAT_CONTEXT.lock().unwrap();
-        if !context.engine_client.get_is_in_game() || !context.engine_client.get_is_connected() {
+        if !context.engine_client_interface.get_is_in_game()
+            || !context.engine_client_interface.get_is_connected()
+        {
             continue;
         }
 

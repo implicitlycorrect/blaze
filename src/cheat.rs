@@ -21,22 +21,22 @@ lazy_static! {
 }
 
 struct CheatContext {
-    client_base: usize,
-    engine2_base: usize,
+    client_module: Module,
+    engine2_module: Module,
     engine_client: CEngineClient,
 }
 
 impl CheatContext {
     fn default() -> Self {
         Self {
-            client_base: 0,
-            engine2_base: 0,
+            client_module: Module::default(),
+            engine2_module: Module::default(),
             engine_client: CEngineClient::default(),
         }
     }
 
     unsafe fn get_local_player(&self) -> Option<LocalPlayer> {
-        let address = (self.client_base + offsets::client::dwLocalPlayerPawn) as *const usize;
+        let address = self.client_module.read(offsets::client::dwLocalPlayerPawn);
         if address as usize == 0 {
             return None;
         }
@@ -63,16 +63,22 @@ pub fn initialize() -> Result<()> {
     let Some(client) = Module::from_name("client.dll") else {
         return Err(anyhow!("Failed to get client.dll module"));
     };
-    context.client_base = client.base_address;
-    println!("loaded client.dll {:#0x}", context.client_base);
+    context.client_module = client;
+    println!(
+        "loaded client.dll {:#0x}",
+        context.client_module.base_address
+    );
 
     let Some(engine2) = Module::from_name("engine2.dll") else {
         return Err(anyhow!("Failed to get engine2 module"));
     };
-    context.engine2_base = engine2.base_address;
-    println!("loaded engine2.dll {:#0x}", context.engine2_base);
+    context.engine2_module = engine2;
+    println!(
+        "loaded engine2.dll {:#0x}",
+        context.engine2_module.base_address
+    );
 
-    let module_factory = interfaces::get_factory(engine2.handle);
+    let module_factory = interfaces::get_factory(context.engine2_module.handle);
     let Some(source2_engine_to_client_interface) =
         interfaces::get_interface(module_factory, "Source2EngineToClient001")
     else {
@@ -85,8 +91,9 @@ pub fn initialize() -> Result<()> {
     println!("hooking functions!");
     std::thread::sleep(std::time::Duration::from_millis(400));
 
-    let Some(execute_command_direct) =
-        engine2.find_pattern("40 53 55 56 57 48 81 EC ? ? ? ? 41 8B E9")
+    let Some(execute_command_direct) = context
+        .engine2_module
+        .find_pattern("40 53 55 56 57 48 81 EC ? ? ? ? 41 8B E9")
     else {
         return Err(anyhow!(
             "unable to find execute command direct in engine2 using provided signature"
@@ -95,7 +102,7 @@ pub fn initialize() -> Result<()> {
 
     unsafe {
         EXECUTE_CLIENT_CMD_DIRECT = hook::create_hook(
-            (engine2.base_address + execute_command_direct) as *mut c_void,
+            (context.engine2_module.base_address + execute_command_direct) as *mut c_void,
             hook_execute_client_cmd_direct as *mut c_void,
         )?;
     }

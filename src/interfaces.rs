@@ -18,11 +18,8 @@ pub fn get_factory(module: HMODULE) -> CreateInterfaceFn {
 pub fn get_interface(factory: CreateInterfaceFn, version: &str) -> Option<*mut c_void> {
     let c_version = CString::new(version).unwrap();
     let interface = factory(c_version.as_ptr(), ptr::null_mut());
-    if interface.is_null() {
-        eprintln!("Couldn't get interface {version:?}");
-        None
-    } else {
-        println!("Found interface {version} at {interface:?}");
-        Some(interface)
+    if !interface.is_null() {
+        return Some(interface);
     }
+    None
 }

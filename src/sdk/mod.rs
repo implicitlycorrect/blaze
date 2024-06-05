@@ -18,27 +18,54 @@ pub struct LocalPlayer {
 }
 
 impl LocalPlayer {
-    pub unsafe fn get_health(&self) -> i32 {
+    pub unsafe fn get_health(&self) -> u32 {
+        if self.pointer.is_null() {
+            return 0;
+        }
+
         *cast!(
             self.pointer as usize + offsets::client::C_BaseEntity::m_iHealth,
-            i32
+            u32
         )
     }
 
     pub unsafe fn get_is_scoped(&self) -> bool {
+        if self.pointer.is_null() {
+            return false;
+        }
+
         *cast!(
             self.pointer as usize + offsets::client::C_CSPlayerPawn::m_bIsScoped,
             bool
         )
     }
 
+    pub unsafe fn get_weapon_services(&self) -> Option<WeaponServices> {
+        if self.pointer.is_null() {
+            return None;
+        }
+
+        Some(
+            WeaponServices::from_raw(cast!(
+                self.pointer as usize + offsets::client::C_BasePlayerPawn::m_pWeaponServices,
+                usize
+            ))?
+            .read(),
+        )
+    }
+
     pub unsafe fn get_camera_services(&self) -> Option<CameraServices> {
-        let camera_services_ptr = CameraServices::from_raw(cast!(
-            self.pointer as usize + offsets::client::C_BasePlayerPawn::m_pCameraServices,
-            usize
-        ))?;
-        let camera_services = camera_services_ptr.read();
-        Some(camera_services)
+        if self.pointer.is_null() {
+            return None;
+        }
+
+        Some(
+            CameraServices::from_raw(cast!(
+                self.pointer as usize + offsets::client::C_BasePlayerPawn::m_pCameraServices,
+                usize
+            ))?
+            .read(),
+        )
     }
 }
 
@@ -57,6 +84,10 @@ impl CEngineClient {
     }
 
     pub unsafe fn get_is_in_game(&self) -> bool {
+        if self.base.is_null() {
+            return false;
+        }
+
         type GetInGameFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
         unsafe {
             std::mem::transmute::<_, GetInGameFn>(get_virtual_function(self.base, 34))(self.base)
@@ -64,6 +95,10 @@ impl CEngineClient {
     }
 
     pub unsafe fn get_is_connected(&self) -> bool {
+        if self.base.is_null() {
+            return false;
+        }
+
         type GetIsConnectedFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
         unsafe {
             std::mem::transmute::<_, GetIsConnectedFn>(get_virtual_function(self.base, 35))(
@@ -73,6 +108,10 @@ impl CEngineClient {
     }
 
     pub unsafe fn execute_client_command(&self, command: &str) {
+        if self.base.is_null() {
+            return;
+        }
+
         type ExecuteClientCmdFn = unsafe extern "thiscall" fn(*mut usize, i32, *const c_char, bool);
         unsafe {
             let command = CString::new(command).unwrap();
@@ -88,20 +127,41 @@ impl CEngineClient {
 }
 
 #[derive(GameObject)]
+pub struct WeaponServices {
+    pointer: *const usize,
+}
+
+impl WeaponServices {
+    pub fn get_weapons(&self) -> Vec<usize> {
+        if self.pointer.is_null() {
+            return Vec::with_capacity(0);
+        }
+        vec![]
+    }
+}
+
+#[derive(GameObject)]
 pub struct CameraServices {
     pointer: *const usize,
 }
 
 impl CameraServices {
-    pub unsafe fn set_fov(&self, desired_fov: i32) {
-        *cast!(mut self.pointer as usize + offsets::client::CCSPlayerBase_CameraServices::m_iFOV, i32) =
-            desired_fov;
+    pub unsafe fn set_fov(&self, desired_fov: u32) {
+        if self.pointer.is_null() {
+            return;
+        }
+
+        *cast!(mut self.pointer as usize + offsets::client::CCSPlayerBase_CameraServices::m_iFOV, u32) = desired_fov;
     }
 
-    pub unsafe fn get_fov(&self) -> i32 {
+    pub unsafe fn get_fov(&self) -> u32 {
+        if self.pointer.is_null() {
+            return 0;
+        }
+
         *cast!(
             self.pointer as usize + offsets::client::CCSPlayerBase_CameraServices::m_iFOV,
-            i32
+            u32
         )
     }
 }

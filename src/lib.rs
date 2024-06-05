@@ -28,6 +28,8 @@ extern "system" fn DllMain(dll_module: HINSTANCE, call_reason: DWORD, _reserved:
             }
 
             cheat::uninitialize();
+
+            std::thread::sleep(std::time::Duration::from_secs(3));
             FreeConsole();
         });
     }

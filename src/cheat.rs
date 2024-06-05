@@ -1,14 +1,11 @@
-use std::{
-    ffi::{c_void, CStr},
-    sync::Mutex,
-};
+use std::{ffi::c_void, sync::Mutex};
 
 use anyhow::{anyhow, Result};
 use winapi::um::winuser::VK_DELETE;
 
 use crate::{
     hook, interfaces, offsets,
-    sdk::{CEngineClient, LocalPlayer},
+    sdk::{get_virtual_function, CEngineClient, LocalPlayer},
 };
 use lazy_static::lazy_static;
 use toy_arms::{keyboard::detect_keypress, module::Module, GameObject};
@@ -35,16 +32,10 @@ impl CheatContext {
     }
 
     unsafe fn get_local_player(&self) -> Option<LocalPlayer> {
-        let address = self.client_module.read(offsets::client::dwLocalPlayerPawn);
-        if address as usize == 0 {
-            return None;
-        }
-        let address = LocalPlayer::from_raw(address)?;
-        if address.is_null() {
-            return None;
-        }
-        let local_player = address.read();
-        Some(local_player)
+        Some(
+            LocalPlayer::from_raw(self.client_module.read(offsets::client::dwLocalPlayerPawn))?
+                .read(),
+        )
     }
 }
 
@@ -94,65 +85,36 @@ pub fn initialize() -> Result<()> {
     println!("hooking functions!");
     std::thread::sleep(std::time::Duration::from_millis(400));
 
-    let Some(execute_command_direct) = context
-        .engine2_module
-        .find_pattern("40 53 55 56 57 48 81 EC ? ? ? ? 41 8B E9")
-    else {
-        return Err(anyhow!(
-            "unable to find execute command direct in engine2 using provided signature"
-        ));
-    };
+    let frame_stage_notify_address = get_virtual_function(context.engine_client.base, 36);
 
     unsafe {
-        EXECUTE_CLIENT_CMD_DIRECT = hook::create_hook(
-            (context.engine2_module.base_address + execute_command_direct) as *mut c_void,
-            hook_execute_client_cmd_direct as *mut c_void,
+        FRAME_STAGE_NOTIFY = hook::create_hook(
+            frame_stage_notify_address as *mut c_void,
+            hook_frame_stage_notify as *mut c_void,
         )?;
 
-        println!("hooked execute client cmd direct");
+        println!("hooked frame stage notify");
     }
 
     hook::enable_hooks()
 }
 
-static mut EXECUTE_CLIENT_CMD_DIRECT: *mut c_void = std::ptr::null_mut();
+static mut FRAME_STAGE_NOTIFY: *mut c_void = std::ptr::null_mut();
 
-type ExecuteClientCmdDirect = extern "fastcall" fn(
-    a1: i64,
-    a2: i32,
-    a3: *const std::ffi::c_char,
-    a4: i32,
-    a5: i32,
-    a6: i64,
-    a7: i8,
-    a8: f64,
-);
+type FrameStageNotify = extern "fastcall" fn(rcx: *mut c_void, stage: i32);
 
-unsafe extern "fastcall" fn hook_execute_client_cmd_direct(
-    a1: i64,
-    a2: i32,
-    a3: *const std::ffi::c_char,
-    a4: i32,
-    a5: i32,
-    a6: i64,
-    a7: i8,
-    a8: f64,
-) {
-    let original: ExecuteClientCmdDirect = std::mem::transmute(EXECUTE_CLIENT_CMD_DIRECT);
-    original(a1, a2, a3, a4, a5, a6, a7, a8);
-
-    let command = CStr::from_ptr(a3);
-    println!(
-        "ExecuteClientCmdDirect({:?},{:?},{:?},{:?},{:?},{:?},{:?},{:?});",
-        a1,
-        a2,
-        command.to_str().unwrap().trim_end(),
-        a4,
-        a5,
-        a6,
-        a7,
-        a8
-    );
+unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32) {
+    let frame_stage_notify: FrameStageNotify = std::mem::transmute(FRAME_STAGE_NOTIFY);
+    if stage == 5 || stage == 6 {
+        let context = CHEAT_CONTEXT.lock().unwrap();
+        if let Some(local_player) = context.get_local_player() {
+            if let Some(weapon_services) = local_player.get_weapon_services() {
+                let weapons = weapon_services.get_weapons();
+                for weapon in weapons {}
+            }
+        }
+    }
+    frame_stage_notify(rcx, stage)
 }
 
 pub unsafe fn run() {
@@ -171,7 +133,7 @@ pub unsafe fn run() {
             continue;
         }
 
-        const DESIRED_FOV: i32 = 120;
+        const DESIRED_FOV: u32 = 120;
 
         if !local_player.get_is_scoped() {
             if let Some(camera_services) = local_player.get_camera_services() {

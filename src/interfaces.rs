@@ -1,6 +1,6 @@
 use std::{
     ffi::{c_char, c_void, CString},
-    mem, println, ptr,
+    mem, ptr,
 };
 use toy_arms::get_module_function_address;
 use winapi::shared::minwindef::HMODULE;

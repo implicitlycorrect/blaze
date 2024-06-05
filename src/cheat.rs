@@ -87,7 +87,10 @@ pub fn initialize() -> Result<()> {
         ));
     };
     context.engine_client.base = source2_engine_to_client_interface as *mut usize;
-    println!("Found interface Source2EngineToClient001 at {:#0x}", context.engine_client.base as usize);
+    println!(
+        "Found interface Source2EngineToClient001 at {:#0x}",
+        context.engine_client.base as usize
+    );
 
     println!("hooking functions!");
     std::thread::sleep(std::time::Duration::from_millis(400));
@@ -106,7 +109,7 @@ pub fn initialize() -> Result<()> {
             (context.engine2_module.base_address + execute_command_direct) as *mut c_void,
             hook_execute_client_cmd_direct as *mut c_void,
         )?;
-        
+
         println!("hooked execute client cmd direct");
     }
 

@@ -1,11 +1,10 @@
 use std::{
-    f64::NAN,
-    ffi::{c_void, CStr, CString},
+    ffi::{c_void, CStr},
     sync::Mutex,
 };
 
 use anyhow::{anyhow, Result};
-use winapi::um::winuser::{VK_DELETE, VK_RSHIFT};
+use winapi::um::winuser::VK_DELETE;
 
 use crate::{
     hook, interfaces, offsets,
@@ -166,13 +165,6 @@ pub unsafe fn run() {
         let Some(local_player) = context.get_local_player() else {
             continue;
         };
-
-        if detect_keypress(VK_RSHIFT) {
-            let execute_client_cmd_direct: ExecuteClientCmdDirect =
-                std::mem::transmute(EXECUTE_CLIENT_CMD_DIRECT);
-            let command: CString = CString::new("connect mirage.epidemic.gg").unwrap();
-            execute_client_cmd_direct(140714815246160, 0, command.as_ptr(), 0, 0, 0, 0, NAN);
-        }
 
         let health = local_player.get_health();
         if health < 1 {

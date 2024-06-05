@@ -7,7 +7,7 @@ use winapi::{
     shared::minwindef::{DWORD, LPCVOID, LPVOID},
     um::{
         memoryapi::{VirtualProtect, VirtualQuery},
-        winnt::{MEMORY_BASIC_INFORMATION, PAGE_EXECUTE, PAGE_EXECUTE_READWRITE},
+        winnt::{MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE},
     },
 };
 

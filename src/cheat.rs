@@ -148,8 +148,6 @@ pub fn initialize() -> Result<()> {
             "hooked void FrameStageNotify(int stage) at {:#0x}",
             set_model_address
         );
-
-        
     }
 
     hook::enable_hooks()
@@ -181,9 +179,13 @@ static mut ORIGINAL_FRAME_STAGE_NOTIFY: *mut c_void = std::ptr::null_mut();
 
 unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32) {
     let context = CHEAT_CONTEXT.lock().unwrap();
-    let original: extern "fastcall" fn(*mut c_void, i32) = std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
+    let original: extern "fastcall" fn(*mut c_void, i32) =
+        std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
 
-    if (context.engine_client_interface.get_is_in_game() && context.engine_client_interface.get_is_connected()) && (stage == 5 || stage == 6) {
+    if (context.engine_client_interface.get_is_in_game()
+        && context.engine_client_interface.get_is_connected())
+        && (stage == 5 || stage == 6)
+    {
         // run skin changer
         if let Some(local_player) = context.get_local_player() {
             let entity_list = context.entity_list() as usize;
@@ -191,7 +193,8 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
             if let Some(weapon_services) = local_player.get_weapon_services() {
                 if let Some(weapon_size) = weapon_services.get_weapon_size() {
                     for index in 0..weapon_size {
-                        let Some(weapon_handle) = weapon_services.get_weapon_handle_at_index(index) else {
+                        let Some(weapon_handle) = weapon_services.get_weapon_handle_at_index(index)
+                        else {
                             continue;
                         };
                         let weapon_controller =

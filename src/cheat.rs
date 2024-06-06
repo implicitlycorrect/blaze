@@ -104,6 +104,12 @@ pub fn initialize() -> Result<()> {
         context.engine_client_interface.base as usize
     );
 
+    let mut item_definition_index_to_skin_map = ITEM_DEFINITION_INDEX_TO_SKIN_MAP.lock().unwrap();
+    item_definition_index_to_skin_map.insert(9, 344);
+    item_definition_index_to_skin_map.insert(4, 38);
+    item_definition_index_to_skin_map.insert(61, 313);
+    item_definition_index_to_skin_map.insert(32, 591);
+
     println!("hooking functions!");
     std::thread::sleep(std::time::Duration::from_millis(400));
 
@@ -142,15 +148,7 @@ pub fn initialize() -> Result<()> {
         );
     }
 
-    hook::enable_hooks()?;
-
-    let mut item_definition_index_to_skin_map = ITEM_DEFINITION_INDEX_TO_SKIN_MAP.lock().unwrap();
-    item_definition_index_to_skin_map.insert(9, 344);
-    item_definition_index_to_skin_map.insert(4, 38);
-    item_definition_index_to_skin_map.insert(61, 313);
-    item_definition_index_to_skin_map.insert(32, 591);
-
-    Ok(())
+    hook::enable_hooks()
 }
 
 static mut SET_MODEL: *mut c_void = std::ptr::null_mut();

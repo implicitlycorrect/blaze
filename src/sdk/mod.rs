@@ -1,5 +1,6 @@
 use std::ffi::{c_char, CString};
 
+use anyhow::{anyhow, Result};
 use toy_arms::{cast, GameObject};
 use toy_arms_derive::GameObject;
 
@@ -12,27 +13,36 @@ pub fn get_virtual_function(base: *mut usize, index: usize) -> *mut usize {
     }
 }
 
-fn is_valid_handle(handle: usize) -> bool {
-    return handle != 0 && handle != 0xFFFFFFFF;
-}
-
 #[derive(GameObject)]
 pub struct LocalPlayer {
     pointer: *const usize,
 }
 
 impl LocalPlayer {
-    pub fn get_health(&self) -> u32 {
+    pub fn get_health(&self) -> Option<u32> {
         if self.pointer.is_null() {
-            return 0;
+            return None;
         }
 
-        unsafe {
+        Some(unsafe {
             *cast!(
                 self.pointer as usize + offsets::client::C_BaseEntity::m_iHealth,
                 u32
             )
+        })
+    }
+
+    pub fn get_team_number(&self) -> Option<u32> {
+        if self.pointer.is_null() {
+            return None;
         }
+
+        Some(unsafe {
+            *cast!(
+                self.pointer as usize + offsets::client::C_BaseEntity::m_iTeamNum,
+                u32
+            )
+        })
     }
 
     pub fn get_weapon_services(&self) -> Option<WeaponServices> {
@@ -63,17 +73,17 @@ impl LocalPlayer {
         })
     }
 
-    pub fn get_is_scoped(&self) -> bool {
+    pub fn get_is_scoped(&self) -> Option<bool> {
         if self.pointer.is_null() {
-            return false;
+            return None;
         }
 
-        unsafe {
+        Some(unsafe {
             *cast!(
                 self.pointer as usize + offsets::client::C_CSPlayerPawn::m_bIsScoped,
                 bool
             )
-        }
+        })
     }
 
     pub fn get_camera_services(&self) -> Option<CameraServices> {
@@ -120,33 +130,33 @@ impl CEngineClient {
         }
     }
 
-    pub fn get_is_in_game(&self) -> bool {
+    pub fn get_is_in_game(&self) -> Option<bool> {
         if self.base.is_null() {
-            return false;
+            return None;
         }
 
         type GetInGameFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
-        unsafe {
+        Some(unsafe {
             std::mem::transmute::<_, GetInGameFn>(get_virtual_function(self.base, 34))(self.base)
-        }
+        })
     }
 
-    pub fn get_is_connected(&self) -> bool {
+    pub fn get_is_connected(&self) -> Option<bool> {
         if self.base.is_null() {
-            return false;
+            return None;
         }
 
         type GetIsConnectedFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
-        unsafe {
+        Some(unsafe {
             std::mem::transmute::<_, GetIsConnectedFn>(get_virtual_function(self.base, 35))(
                 self.base,
             )
-        }
+        })
     }
 
-    pub fn execute_client_command(&self, command: &str) {
+    pub fn execute_client_command(&self, command: &str) -> Result<()> {
         if self.base.is_null() {
-            return;
+            return Err(anyhow!("*CEngineClient points to null"));
         }
 
         type ExecuteClientCmdFn = unsafe extern "thiscall" fn(*mut usize, i32, *const c_char, bool);
@@ -160,6 +170,8 @@ impl CEngineClient {
                 true,
             );
         }
+
+        Ok(())
     }
 }
 
@@ -169,20 +181,17 @@ pub struct ViewModelServices {
 }
 
 impl ViewModelServices {
-    pub fn get_viewmodel_handle(&self) -> Option<usize> {
+    pub fn get_viewmodel_handle(&self) -> Option<u32> {
         if self.pointer.is_null() {
             return None;
         }
-        let handle = unsafe {
+
+        Some(unsafe {
             *cast!(
                 self.pointer as usize + offsets::client::CCSPlayer_ViewModelServices::m_hViewModel,
-                usize
+                u32
             )
-        };
-        if !is_valid_handle(handle) {
-            return None;
-        }
-        Some(handle)
+        })
     }
 }
 
@@ -200,24 +209,18 @@ impl WeaponServices {
         Some(unsafe { *cast!(self.pointer as usize + 0x50, usize) })
     }
 
-    pub fn get_weapon_handle_at_index(&self, index: usize) -> Option<usize> {
+    pub fn get_weapon_handle_at_index(&self, index: usize) -> Option<i32> {
         if self.pointer.is_null() {
             return None;
         }
 
-        let handle = unsafe {
+        Some(unsafe {
             *cast!(
                 (self.pointer as usize + offsets::client::CPlayer_WeaponServices::m_hActiveWeapon)
                     + 0x4 * index,
-                usize
+                    i32
             )
-        };
-
-        if !is_valid_handle(handle) {
-            return None;
-        }
-
-        Some(handle)
+        })
     }
 }
 

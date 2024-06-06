@@ -19,15 +19,6 @@ lazy_static! {
     static ref CHEAT_CONTEXT: Mutex<CheatContext> = Mutex::new(CheatContext::default());
 }
 
-unsafe fn get_controller_from_handle(entity_list: usize, handle: usize) -> usize {
-    let handle = handle & 0x7FFF;
-    let list_address = entity_list + 0x8 * (handle >> 0x9) + 0x10;
-    let list = *(list_address as *const usize);
-    let controller_address = list + 0x78 * (handle & 0x1FF);
-    let controller = *(controller_address as *const usize);
-    controller
-}
-
 struct CheatContext {
     client_module: Module,
     engine2_module: Module,
@@ -107,6 +98,7 @@ pub fn initialize() -> Result<()> {
         "Found interface Source2EngineToClient001 at {:#0x}",
         context.engine_client_interface.base as usize
     );
+    /*
 
     println!("hooking functions!");
     std::thread::sleep(std::time::Duration::from_millis(400));
@@ -149,6 +141,7 @@ pub fn initialize() -> Result<()> {
             set_model_address
         );
     }
+    */
 
     hook::enable_hooks()
 }
@@ -182,8 +175,14 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
     let original: extern "fastcall" fn(*mut c_void, i32) =
         std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
 
-    if (context.engine_client_interface.get_is_in_game()
-        && context.engine_client_interface.get_is_connected())
+    if (context
+        .engine_client_interface
+        .get_is_in_game()
+        .unwrap_or_default()
+        && context
+            .engine_client_interface
+            .get_is_connected()
+            .unwrap_or_default())
         && (stage == 5 || stage == 6)
     {
         // run skin changer
@@ -193,6 +192,7 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
             if let Some(weapon_services) = local_player.get_weapon_services() {
                 if let Some(weapon_size) = weapon_services.get_weapon_size() {
                     for index in 0..weapon_size {
+                        /*
                         let Some(weapon_handle) = weapon_services.get_weapon_handle_at_index(index)
                         else {
                             continue;
@@ -215,7 +215,7 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
                                 + offsets::client::C_EconItemView::m_iItemDefinitionIndex,
                             i32
                         );
-                        println!("held weapon id: {weapon_id}");
+                        println!("held weapon id: {weapon_id}"); */
                     }
                 }
             }
@@ -224,11 +224,17 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
     original(rcx, stage);
 }
 
-pub fn run() {
+pub unsafe fn run() {
     while !detect_keypress(EXIT_KEY) {
         let context = CHEAT_CONTEXT.lock().unwrap();
-        if !context.engine_client_interface.get_is_in_game()
-            || !context.engine_client_interface.get_is_connected()
+        if !context
+            .engine_client_interface
+            .get_is_in_game()
+            .unwrap_or_default()
+            || !context
+                .engine_client_interface
+                .get_is_connected()
+                .unwrap_or_default()
         {
             continue;
         }
@@ -237,20 +243,56 @@ pub fn run() {
             continue;
         };
 
-        let health = local_player.get_health();
+        let health = local_player.get_health().unwrap_or_default();
         if health < 1 {
             continue;
         }
 
         const DESIRED_FOV: u32 = 120;
 
-        if !local_player.get_is_scoped() {
+        if !local_player.get_is_scoped().unwrap_or_default() {
             if let Some(camera_services) = local_player.get_camera_services() {
                 let current_fov = camera_services.get_fov();
                 if current_fov != DESIRED_FOV {
                     camera_services.set_fov(DESIRED_FOV);
                 }
             }
+        }
+
+        let entity_list = context.entity_list();
+        if entity_list.is_null() {
+            continue;
+        }
+        let entity_list = *entity_list;
+
+        let Some(weapon_services) = local_player.get_weapon_services() else {
+            continue;
+        };
+
+        let weapon_size = weapon_services.get_weapon_size().unwrap_or_default();
+        for weapon_index in 0..weapon_size {
+            let weapon_handle = weapon_services
+                .get_weapon_handle_at_index(weapon_index)
+                .unwrap_or_default();
+
+            if weapon_handle <= 0 {
+                continue;
+            }
+
+            let weapon_handle = (weapon_handle & 0x7FFF) as usize;
+            let weapon_list_entry = *cast!(entity_list + 8 * (weapon_handle >> 9) + 16, usize);
+            let weapon_controller = *cast!(weapon_list_entry + 120 * (weapon_handle & 0x1FF), usize);
+
+            let weapon_data = weapon_controller + 0x350;
+
+            let weapon_state = *cast!(weapon_controller + offsets::client::C_CSWeaponBase::m_iState, i32);
+
+            let weapon_item = weapon_controller + offsets::client::C_EconEntity::m_AttributeManager + offsets::client::C_AttributeContainer::m_Item;
+
+            let weapon_name = CStr::from_ptr((weapon_data + offsets::client::CCSWeaponBaseVData::m_szName) as *const i8);
+            let weapon_name = weapon_name.to_str().unwrap();
+
+            println!("{:#0x} {weapon_name} {weapon_state}", weapon_controller);
         }
     }
 }

@@ -173,61 +173,61 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
         // run skin changer
         if let Some(local_player) = context.get_local_player() {
             let entity_list = context.entity_list();
-            if entity_list.is_null() {
-                return;
-            }
-            let entity_list = *entity_list;
+            if !entity_list.is_null() {
+                let entity_list = *entity_list;
 
-            let Some(weapon_services) = local_player.get_weapon_services() else {
-                return;
-            };
+                if let Some(weapon_services) = local_player.get_weapon_services() {
+                    let item_definition_index_to_skin_map =
+                        ITEM_DEFINITION_INDEX_TO_SKIN_MAP.lock().unwrap();
 
-            let item_definition_index_to_skin_map =
-                ITEM_DEFINITION_INDEX_TO_SKIN_MAP.lock().unwrap();
+                    let weapon_size = weapon_services.get_weapon_size().unwrap_or_default();
+                    for weapon_index in 0..weapon_size {
+                        let weapon_handle = weapon_services
+                            .get_weapon_handle_at_index(weapon_index)
+                            .unwrap_or_default();
 
-            let weapon_size = weapon_services.get_weapon_size().unwrap_or_default();
-            for weapon_index in 0..weapon_size {
-                let weapon_handle = weapon_services
-                    .get_weapon_handle_at_index(weapon_index)
-                    .unwrap_or_default();
+                        if weapon_handle <= 0 {
+                            continue;
+                        }
 
-                if weapon_handle <= 0 {
-                    continue;
+                        let weapon_handle = (weapon_handle & 0x7FFF) as usize;
+                        let weapon_list_entry =
+                            *cast!(entity_list + 8 * (weapon_handle >> 9) + 16, usize);
+                        let weapon_controller =
+                            *cast!(weapon_list_entry + 120 * (weapon_handle & 0x1FF), usize);
+
+                        let weapon_item = weapon_controller
+                            + offsets::client::C_EconEntity::m_AttributeManager
+                            + offsets::client::C_AttributeContainer::m_Item;
+
+                        let item_definition_index = *cast!(
+                            weapon_item + offsets::client::C_EconItemView::m_iItemDefinitionIndex,
+                            i16
+                        );
+                        if !item_definition_index_to_skin_map.contains_key(&item_definition_index) {
+                            continue;
+                        }
+                        let desired_paintkit = *item_definition_index_to_skin_map
+                            .get(&item_definition_index)
+                            .unwrap();
+                        let paintkit = cast!(mut weapon_controller + offsets::client::C_EconEntity::m_nFallbackPaintKit, i32);
+                        if *paintkit == desired_paintkit {
+                            continue;
+                        }
+
+                        //let game_scene_node = weapon_controller + offsets::client::C_BaseEntity::m_pGameSceneNode as usize;
+                        //let mesh_group_mask = cast!(mut game_scene_node + 0x160 + offsets::client::CModelState::m_MeshGroupMask, i32);
+                        //if *mesh_group_mask != -1 {
+                        //    *mesh_group_mask = -1;
+                        //}
+
+                        *cast!(mut weapon_item + offsets::client::C_EconItemView::m_iItemIDLow, i32) =
+                            -1;
+                        *cast!(mut weapon_item + offsets::client::C_EconItemView::m_iItemIDHigh, i32) =
+                            -1;
+                        *paintkit = desired_paintkit;
+                    }
                 }
-
-                let weapon_handle = (weapon_handle & 0x7FFF) as usize;
-                let weapon_list_entry = *cast!(entity_list + 8 * (weapon_handle >> 9) + 16, usize);
-                let weapon_controller =
-                    *cast!(weapon_list_entry + 120 * (weapon_handle & 0x1FF), usize);
-
-                let weapon_item = weapon_controller
-                    + offsets::client::C_EconEntity::m_AttributeManager
-                    + offsets::client::C_AttributeContainer::m_Item;
-
-                let item_definition_index = *cast!(
-                    weapon_item + offsets::client::C_EconItemView::m_iItemDefinitionIndex,
-                    i16
-                );
-                if !item_definition_index_to_skin_map.contains_key(&item_definition_index) {
-                    continue;
-                }
-                let desired_paintkit = *item_definition_index_to_skin_map
-                    .get(&item_definition_index)
-                    .unwrap();
-                let paintkit = cast!(mut weapon_controller + offsets::client::C_EconEntity::m_nFallbackPaintKit, i32);
-                if *paintkit == desired_paintkit {
-                    continue;
-                }
-
-                //let game_scene_node = weapon_controller + offsets::client::C_BaseEntity::m_pGameSceneNode as usize;
-                //let mesh_group_mask = cast!(mut game_scene_node + 0x160 + offsets::client::CModelState::m_MeshGroupMask, i32);
-                //if *mesh_group_mask != -1 {
-                //    *mesh_group_mask = -1;
-                //}
-
-                *cast!(mut weapon_item + offsets::client::C_EconItemView::m_iItemIDLow, i32) = -1;
-                *cast!(mut weapon_item + offsets::client::C_EconItemView::m_iItemIDHigh, i32) = -1;
-                *paintkit = desired_paintkit;
             }
         }
     }

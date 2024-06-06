@@ -7,5 +7,6 @@ Current Roadmap:
 - [ ] Anticheat
     - [ ] Hook anticheat functions
 - [ ] Overlay
+    - [ ] Config
 
 Credit to [Ion CS:GO Cheat](https://github.com/zorftw/Ion), [uc](https://www.unknowncheats.me/forum/rust-language-/620533-cs2-internal-rust-cheat-base.html) and [toy-arms](https://github.com/pseuxide/toy-arms)

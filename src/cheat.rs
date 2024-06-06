@@ -262,14 +262,6 @@ pub unsafe fn run() {
             continue;
         }
 
-        println!(
-            "{}",
-            *cast!(
-                context.client_module.base_address + offsets::buttons::attack,
-                u32
-            )
-        );
-
         let attack = cast!(
             mut context.client_module.base_address + offsets::buttons::attack,
             u32

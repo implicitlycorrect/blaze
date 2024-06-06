@@ -172,6 +172,10 @@ impl CEngineClient {
 
         Ok(())
     }
+
+    pub fn force_full_update(&self) -> Result<()> {
+        self.execute_client_command("record x; stop")
+    }
 }
 
 #[derive(GameObject)]

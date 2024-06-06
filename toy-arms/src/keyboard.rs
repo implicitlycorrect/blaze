@@ -32,7 +32,7 @@ macro_rules! detect_keydown {
 /// }
 /// ```
 pub fn detect_keypress(code: i32) -> bool {
-    unsafe { GetAsyncKeyState(code) & 1 != 0 }
+    unsafe { GetAsyncKeyState(code) < 0 }
 }
 
 /// VirtualKeyCode is a set of virtual key code defined by microsoft.

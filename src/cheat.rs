@@ -1,4 +1,9 @@
-use std::{collections::HashMap, ffi::c_void, sync::Mutex};
+use std::{
+    collections::HashMap,
+    ffi::c_void,
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 use anyhow::{anyhow, Result};
 use winapi::um::winuser::{VK_DELETE, VK_XBUTTON2};
@@ -232,7 +237,11 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
 }
 
 pub unsafe fn run() {
+    let mut time_since_last_shot: Instant = Instant::now() - Duration::from_secs(1);
+
     while !detect_keypress(EXIT_KEY) {
+        std::thread::sleep(Duration::from_millis(1));
+
         let context = CHEAT_CONTEXT.lock().unwrap();
         if !context
             .engine_client_interface
@@ -255,16 +264,40 @@ pub unsafe fn run() {
             continue;
         }
 
+        println!(
+            "{}",
+            *cast!(
+                context.client_module.base_address + offsets::buttons::attack,
+                u32
+            )
+        );
+
+        let attack = cast!(
+            mut context.client_module.base_address + offsets::buttons::attack,
+            u32
+        );
+
         if detect_keypress(TRIGGERBOT_KEY) {
             if let Some(entity_handle) = local_player.get_handle_of_entity_in_crosshair() {
-                if entity_handle == -1 {
-                    continue;
-                }
+                if entity_handle != -1 {
+                    let now = Instant::now();
+                    let should_shoot = now.duration_since(time_since_last_shot)
+                        > Duration::from_millis(16)
+                        && *attack <= 256;
 
-                _ = context
-                    .engine_client_interface
-                    .execute_client_command("+attack;-attack");
+                    if should_shoot {
+                        let _ = context
+                            .engine_client_interface
+                            .execute_client_command("+attack;-attack");
+                        time_since_last_shot = now;
+                    }
+                }
             }
+        }
+
+        // +attack;-attack; fix !!!
+        if *attack == 257 {
+            *attack = 256;
         }
 
         const DESIRED_FOV: u32 = 120;

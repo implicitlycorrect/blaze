@@ -1,25 +1,22 @@
-use std::{
-    collections::HashMap,
-    ffi::{c_char, c_void, CStr, CString},
-    sync::Mutex,
-};
+use std::{collections::HashMap, ffi::c_void, sync::Mutex};
 
 use anyhow::{anyhow, Result};
-use winapi::um::winuser::VK_DELETE;
+use winapi::um::winuser::{VK_DELETE, VK_XBUTTON2};
 
 use crate::{
-    hook, interfaces,
-    offsets::{self, client::C_EconItemView},
+    hook, interfaces, offsets,
     sdk::{get_virtual_function, CEngineClient, CSource2Client, LocalPlayer},
 };
 use lazy_static::lazy_static;
 use toy_arms::{cast, keyboard::detect_keypress, module::Module, GameObject};
 
 const EXIT_KEY: i32 = VK_DELETE;
+const TRIGGERBOT_KEY: i32 = VK_XBUTTON2;
 
 lazy_static! {
     static ref CHEAT_CONTEXT: Mutex<CheatContext> = Mutex::new(CheatContext::default());
-    static ref WEAPON_ID_TO_SKIN_MAP: Mutex<HashMap<i16, i32>> = Mutex::new(HashMap::new());
+    static ref ITEM_DEFINITION_INDEX_TO_SKIN_MAP: Mutex<HashMap<i16, i32>> =
+        Mutex::new(HashMap::new());
 }
 
 struct CheatContext {
@@ -142,16 +139,14 @@ pub fn initialize() -> Result<()> {
 
     hook::enable_hooks()?;
 
-    let mut weapon_id_to_skin_map = WEAPON_ID_TO_SKIN_MAP.lock().unwrap();
-    weapon_id_to_skin_map.insert(9, 344);
-    weapon_id_to_skin_map.insert(4, 38);
-    weapon_id_to_skin_map.insert(61, 313);
-    weapon_id_to_skin_map.insert(32, 591);
+    let mut item_definition_index_to_skin_map = ITEM_DEFINITION_INDEX_TO_SKIN_MAP.lock().unwrap();
+    item_definition_index_to_skin_map.insert(9, 344);
+    item_definition_index_to_skin_map.insert(4, 38);
+    item_definition_index_to_skin_map.insert(61, 313);
+    item_definition_index_to_skin_map.insert(32, 591);
 
     Ok(())
 }
-
-static mut SHOULD_FORCE_UPDATE: bool = false;
 
 static mut SET_MODEL: *mut c_void = std::ptr::null_mut();
 
@@ -159,7 +154,8 @@ static mut ORIGINAL_FRAME_STAGE_NOTIFY: *mut c_void = std::ptr::null_mut();
 
 unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32) {
     let context = CHEAT_CONTEXT.lock().unwrap();
-    let frame_stage_notify: extern "fastcall" fn(*mut c_void, i32) = std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
+    let frame_stage_notify: extern "fastcall" fn(*mut c_void, i32) =
+        std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
 
     if (context
         .engine_client_interface
@@ -183,7 +179,8 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
                 return;
             };
 
-            let weapon_id_to_skin_map = WEAPON_ID_TO_SKIN_MAP.lock().unwrap();
+            let item_definition_index_to_skin_map =
+                ITEM_DEFINITION_INDEX_TO_SKIN_MAP.lock().unwrap();
 
             let weapon_size = weapon_services.get_weapon_size().unwrap_or_default();
             for weapon_index in 0..weapon_size {
@@ -204,14 +201,16 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
                     + offsets::client::C_EconEntity::m_AttributeManager
                     + offsets::client::C_AttributeContainer::m_Item;
 
-                let weapon_id = *cast!(
+                let item_definition_index = *cast!(
                     weapon_item + offsets::client::C_EconItemView::m_iItemDefinitionIndex,
                     i16
                 );
-                if !weapon_id_to_skin_map.contains_key(&weapon_id) {
+                if !item_definition_index_to_skin_map.contains_key(&item_definition_index) {
                     continue;
                 }
-                let desired_paintkit = *weapon_id_to_skin_map.get(&weapon_id).unwrap();
+                let desired_paintkit = *item_definition_index_to_skin_map
+                    .get(&item_definition_index)
+                    .unwrap();
                 let paintkit = cast!(mut weapon_controller + offsets::client::C_EconEntity::m_nFallbackPaintKit, i32);
                 if *paintkit == desired_paintkit {
                     continue;
@@ -254,6 +253,18 @@ pub unsafe fn run() {
         let health = local_player.get_health().unwrap_or_default();
         if health < 1 {
             continue;
+        }
+
+        if detect_keypress(TRIGGERBOT_KEY) {
+            if let Some(entity_handle) = local_player.get_handle_of_entity_in_crosshair() {
+                if entity_handle == -1 {
+                    continue;
+                }
+
+                _ = context
+                    .engine_client_interface
+                    .execute_client_command("+attack;-attack");
+            }
         }
 
         const DESIRED_FOV: u32 = 120;

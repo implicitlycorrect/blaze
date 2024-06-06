@@ -59,20 +59,6 @@ impl LocalPlayer {
         })
     }
 
-    pub fn get_viewmodel_services(&self) -> Option<ViewModelServices> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe {
-            ViewModelServices::from_raw(
-                (self.pointer as usize + offsets::client::C_CSPlayerPawnBase::m_pViewModelServices)
-                    as *const usize,
-            )?
-            .read()
-        })
-    }
-
     pub fn get_is_scoped(&self) -> Option<bool> {
         if self.pointer.is_null() {
             return None;
@@ -98,6 +84,19 @@ impl LocalPlayer {
             )?
             .read()
         })
+    }
+
+    pub fn get_handle_of_entity_in_crosshair(&self) -> Option<i32> {
+        if self.pointer.is_null() {
+            return None;
+        }
+
+        let entity_index_pointer =
+            self.pointer as usize + offsets::client::C_CSPlayerPawnBase::m_iIDEntIndex;
+        if entity_index_pointer == 0 {
+            return None;
+        }
+        Some(unsafe { *cast!(entity_index_pointer, i32) })
     }
 }
 
@@ -172,26 +171,6 @@ impl CEngineClient {
         }
 
         Ok(())
-    }
-}
-
-#[derive(GameObject)]
-pub struct ViewModelServices {
-    pointer: *const usize,
-}
-
-impl ViewModelServices {
-    pub fn get_viewmodel_handle(&self) -> Option<u32> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe {
-            *cast!(
-                self.pointer as usize + offsets::client::CCSPlayer_ViewModelServices::m_hViewModel,
-                u32
-            )
-        })
     }
 }
 

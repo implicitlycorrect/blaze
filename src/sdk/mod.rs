@@ -218,7 +218,7 @@ impl WeaponServices {
             *cast!(
                 (self.pointer as usize + offsets::client::CPlayer_WeaponServices::m_hActiveWeapon)
                     + 0x4 * index,
-                    i32
+                i32
             )
         })
     }

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     ffi::{c_char, c_void, CStr, CString},
     sync::Mutex,
 };
@@ -7,7 +8,8 @@ use anyhow::{anyhow, Result};
 use winapi::um::winuser::VK_DELETE;
 
 use crate::{
-    hook, interfaces, offsets,
+    hook, interfaces,
+    offsets::{self, client::C_EconItemView},
     sdk::{get_virtual_function, CEngineClient, CSource2Client, LocalPlayer},
 };
 use lazy_static::lazy_static;
@@ -17,6 +19,7 @@ const EXIT_KEY: i32 = VK_DELETE;
 
 lazy_static! {
     static ref CHEAT_CONTEXT: Mutex<CheatContext> = Mutex::new(CheatContext::default());
+    static ref WEAPON_ID_TO_SKIN_MAP: Mutex<HashMap<i16, i32>> = Mutex::new(HashMap::new());
 }
 
 struct CheatContext {
@@ -98,7 +101,6 @@ pub fn initialize() -> Result<()> {
         "Found interface Source2EngineToClient001 at {:#0x}",
         context.engine_client_interface.base as usize
     );
-    /*
 
     println!("hooking functions!");
     std::thread::sleep(std::time::Duration::from_millis(400));
@@ -118,12 +120,8 @@ pub fn initialize() -> Result<()> {
             "found void SetModel(*const char) at {:#0x}",
             set_model_address
         );
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        ORIGINAL_SET_MODEL = hook::create_hook(
-            set_model_address as *mut c_void,
-            hook_set_model as *mut c_void,
-        )?;
-        println!("hooked void SetModel(*const char)");
+
+        SET_MODEL = set_model_address as *mut c_void;
 
         let frame_stage_notify_address = get_virtual_function(context.client_interface.base, 36);
         println!(
@@ -141,39 +139,27 @@ pub fn initialize() -> Result<()> {
             set_model_address
         );
     }
-    */
 
-    hook::enable_hooks()
+    hook::enable_hooks()?;
+
+    let mut weapon_id_to_skin_map = WEAPON_ID_TO_SKIN_MAP.lock().unwrap();
+    weapon_id_to_skin_map.insert(9, 344);
+    weapon_id_to_skin_map.insert(4, 38);
+    weapon_id_to_skin_map.insert(61, 313);
+    weapon_id_to_skin_map.insert(32, 591);
+
+    Ok(())
 }
 
-static mut ORIGINAL_SET_MODEL: *mut c_void = std::ptr::null_mut();
+static mut SHOULD_FORCE_UPDATE: bool = false;
 
-unsafe extern "fastcall" fn hook_set_model(rcx: *mut c_void, model: *const c_char) {
-    let original: extern "fastcall" fn(*mut c_void, *const c_char) =
-        std::mem::transmute(ORIGINAL_SET_MODEL);
-    let model_name = CStr::from_ptr(model);
-    let model_name = model_name.to_str().unwrap();
-    println!("{model_name}");
-
-    if model_name == "weapons/models/knife/knife_default_t/weapon_knife_default_t.vmdl" {
-        let new_model =
-            CString::new("weapons/models/knife/knife_butterfly/weapon_knife_butterfly.vmdl")
-                .unwrap();
-        let new_model = new_model.as_ptr();
-        original(rcx, new_model);
-    } else {
-        original(rcx, model);
-    }
-}
-
-const WEAPON_STATE_HELD: i32 = 2;
+static mut SET_MODEL: *mut c_void = std::ptr::null_mut();
 
 static mut ORIGINAL_FRAME_STAGE_NOTIFY: *mut c_void = std::ptr::null_mut();
 
 unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32) {
     let context = CHEAT_CONTEXT.lock().unwrap();
-    let original: extern "fastcall" fn(*mut c_void, i32) =
-        std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
+    let frame_stage_notify: extern "fastcall" fn(*mut c_void, i32) = std::mem::transmute(ORIGINAL_FRAME_STAGE_NOTIFY);
 
     if (context
         .engine_client_interface
@@ -187,41 +173,63 @@ unsafe extern "fastcall" fn hook_frame_stage_notify(rcx: *mut c_void, stage: i32
     {
         // run skin changer
         if let Some(local_player) = context.get_local_player() {
-            let entity_list = context.entity_list() as usize;
+            let entity_list = context.entity_list();
+            if entity_list.is_null() {
+                return;
+            }
+            let entity_list = *entity_list;
 
-            if let Some(weapon_services) = local_player.get_weapon_services() {
-                if let Some(weapon_size) = weapon_services.get_weapon_size() {
-                    for index in 0..weapon_size {
-                        /*
-                        let Some(weapon_handle) = weapon_services.get_weapon_handle_at_index(index)
-                        else {
-                            continue;
-                        };
-                        let weapon_controller =
-                            get_controller_from_handle(entity_list, weapon_handle);
-                        let weapon_state = *cast!(
-                            weapon_controller + offsets::client::C_CSWeaponBase::m_iState,
-                            i32
-                        );
-                        if weapon_state < WEAPON_STATE_HELD {
-                            continue;
-                        }
-                        // C_EconItemView
-                        let weapon_econ_item_view = weapon_controller
-                            + offsets::client::C_EconEntity::m_AttributeManager
-                            + offsets::client::C_AttributeContainer::m_Item;
-                        let weapon_id = *cast!(
-                            weapon_econ_item_view
-                                + offsets::client::C_EconItemView::m_iItemDefinitionIndex,
-                            i32
-                        );
-                        println!("held weapon id: {weapon_id}"); */
-                    }
+            let Some(weapon_services) = local_player.get_weapon_services() else {
+                return;
+            };
+
+            let weapon_id_to_skin_map = WEAPON_ID_TO_SKIN_MAP.lock().unwrap();
+
+            let weapon_size = weapon_services.get_weapon_size().unwrap_or_default();
+            for weapon_index in 0..weapon_size {
+                let weapon_handle = weapon_services
+                    .get_weapon_handle_at_index(weapon_index)
+                    .unwrap_or_default();
+
+                if weapon_handle <= 0 {
+                    continue;
                 }
+
+                let weapon_handle = (weapon_handle & 0x7FFF) as usize;
+                let weapon_list_entry = *cast!(entity_list + 8 * (weapon_handle >> 9) + 16, usize);
+                let weapon_controller =
+                    *cast!(weapon_list_entry + 120 * (weapon_handle & 0x1FF), usize);
+
+                let weapon_item = weapon_controller
+                    + offsets::client::C_EconEntity::m_AttributeManager
+                    + offsets::client::C_AttributeContainer::m_Item;
+
+                let weapon_id = *cast!(
+                    weapon_item + offsets::client::C_EconItemView::m_iItemDefinitionIndex,
+                    i16
+                );
+                if !weapon_id_to_skin_map.contains_key(&weapon_id) {
+                    continue;
+                }
+                let desired_paintkit = *weapon_id_to_skin_map.get(&weapon_id).unwrap();
+                let paintkit = cast!(mut weapon_controller + offsets::client::C_EconEntity::m_nFallbackPaintKit, i32);
+                if *paintkit == desired_paintkit {
+                    continue;
+                }
+
+                //let game_scene_node = weapon_controller + offsets::client::C_BaseEntity::m_pGameSceneNode as usize;
+                //let mesh_group_mask = cast!(mut game_scene_node + 0x160 + offsets::client::CModelState::m_MeshGroupMask, i32);
+                //if *mesh_group_mask != -1 {
+                //    *mesh_group_mask = -1;
+                //}
+
+                *cast!(mut weapon_item + offsets::client::C_EconItemView::m_iItemIDLow, i32) = -1;
+                *cast!(mut weapon_item + offsets::client::C_EconItemView::m_iItemIDHigh, i32) = -1;
+                *paintkit = desired_paintkit;
             }
         }
     }
-    original(rcx, stage);
+    frame_stage_notify(rcx, stage);
 }
 
 pub unsafe fn run() {
@@ -257,42 +265,6 @@ pub unsafe fn run() {
                     camera_services.set_fov(DESIRED_FOV);
                 }
             }
-        }
-
-        let entity_list = context.entity_list();
-        if entity_list.is_null() {
-            continue;
-        }
-        let entity_list = *entity_list;
-
-        let Some(weapon_services) = local_player.get_weapon_services() else {
-            continue;
-        };
-
-        let weapon_size = weapon_services.get_weapon_size().unwrap_or_default();
-        for weapon_index in 0..weapon_size {
-            let weapon_handle = weapon_services
-                .get_weapon_handle_at_index(weapon_index)
-                .unwrap_or_default();
-
-            if weapon_handle <= 0 {
-                continue;
-            }
-
-            let weapon_handle = (weapon_handle & 0x7FFF) as usize;
-            let weapon_list_entry = *cast!(entity_list + 8 * (weapon_handle >> 9) + 16, usize);
-            let weapon_controller = *cast!(weapon_list_entry + 120 * (weapon_handle & 0x1FF), usize);
-
-            let weapon_data = weapon_controller + 0x350;
-
-            let weapon_state = *cast!(weapon_controller + offsets::client::C_CSWeaponBase::m_iState, i32);
-
-            let weapon_item = weapon_controller + offsets::client::C_EconEntity::m_AttributeManager + offsets::client::C_AttributeContainer::m_Item;
-
-            let weapon_name = CStr::from_ptr((weapon_data + offsets::client::CCSWeaponBaseVData::m_szName) as *const i8);
-            let weapon_name = weapon_name.to_str().unwrap();
-
-            println!("{:#0x} {weapon_name} {weapon_state}", weapon_controller);
         }
     }
 }

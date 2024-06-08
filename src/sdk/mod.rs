@@ -9,62 +9,6 @@ pub fn get_virtual_function(base: *mut usize, index: usize) -> *mut usize {
     }
 }
 
-pub struct LocalPlayer {
-    pointer: *const usize,
-}
-
-impl LocalPlayer {
-    pub unsafe fn from_raw(pointer: *mut usize) -> Option<*mut LocalPlayer> {
-        let local_player_pointer = pointer as *mut LocalPlayer;
-        if local_player_pointer.is_null() {
-            return None;
-        }
-        Some(local_player_pointer)
-    }
-
-    pub fn get_is_scoped(&self) -> Option<bool> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        let is_scoped_pointer =
-            (self.pointer as usize + offsets::client::C_CSPlayerPawn::m_bIsScoped) as *const bool;
-        if is_scoped_pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe { *is_scoped_pointer })
-    }
-
-    pub fn get_camera_services(&self) -> Option<CameraServices> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe {
-            CameraServices::from_raw(
-                (self.pointer as usize + offsets::client::C_BasePlayerPawn::m_pCameraServices)
-                    as *const usize,
-            )?
-            .read()
-        })
-    }
-
-    pub fn get_handle_of_entity_in_crosshair(&self) -> Option<i32> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        let entity_index_pointer = (self.pointer as usize
-            + offsets::client::C_CSPlayerPawnBase::m_iIDEntIndex)
-            as *const i32;
-        if entity_index_pointer.is_null() {
-            return None;
-        }
-        Some(unsafe { *entity_index_pointer })
-    }
-}
-
 pub struct CSource2Client {
     pub base: *mut usize,
 }
@@ -101,7 +45,9 @@ impl CEngineClient {
 
         type GetInGameFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
         Some(unsafe {
-            std::mem::transmute::<_, GetInGameFn>(get_virtual_function(self.base, 34))(self.base)
+            mem::transmute::<*mut usize, GetInGameFn>(get_virtual_function(self.base, 34))(
+                self.base,
+            )
         })
     }
 
@@ -112,7 +58,7 @@ impl CEngineClient {
 
         type GetIsConnectedFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
         Some(unsafe {
-            std::mem::transmute::<_, GetIsConnectedFn>(get_virtual_function(self.base, 35))(
+            mem::transmute::<*mut usize, GetIsConnectedFn>(get_virtual_function(self.base, 35))(
                 self.base,
             )
         })
@@ -127,7 +73,7 @@ impl CEngineClient {
         unsafe {
             let command = CString::new(command).unwrap();
             let command_pointer = command.as_ptr();
-            std::mem::transmute::<_, ExecuteClientCmdFn>(get_virtual_function(self.base, 43))(
+            mem::transmute::<*mut usize, ExecuteClientCmdFn>(get_virtual_function(self.base, 43))(
                 self.base,
                 0,
                 command_pointer,
@@ -136,6 +82,75 @@ impl CEngineClient {
         }
 
         Ok(())
+    }
+}
+
+pub struct LocalPlayer {
+    pointer: *const usize,
+}
+
+impl LocalPlayer {
+    pub unsafe fn from_raw(pointer: *mut usize) -> Option<*mut LocalPlayer> {
+        let local_player_pointer = pointer as *mut LocalPlayer;
+        if local_player_pointer.is_null() {
+            return None;
+        }
+        Some(local_player_pointer)
+    }
+
+    pub fn get_on_ground(&self) -> Option<bool> {
+        if self.pointer.is_null() {
+            return None;
+        }
+
+        let flags_pointer =
+            (self.pointer as usize + offsets::client::C_BaseEntity::m_fFlags) as *const u32;
+        if flags_pointer.is_null() {
+            return None;
+        }
+        Some(unsafe { (flags_pointer.read() & (1 << 0)) > 0 })
+    }
+
+    pub fn get_is_scoped(&self) -> Option<bool> {
+        if self.pointer.is_null() {
+            return None;
+        }
+
+        let is_scoped_pointer =
+            (self.pointer as usize + offsets::client::C_CSPlayerPawn::m_bIsScoped) as *const bool;
+        if is_scoped_pointer.is_null() {
+            return None;
+        }
+
+        Some(unsafe { is_scoped_pointer.read() })
+    }
+
+    pub fn get_camera_services(&self) -> Option<CameraServices> {
+        if self.pointer.is_null() {
+            return None;
+        }
+
+        Some(unsafe {
+            CameraServices::from_raw(
+                (self.pointer as usize + offsets::client::C_BasePlayerPawn::m_pCameraServices)
+                    as *const usize,
+            )?
+            .read()
+        })
+    }
+
+    pub fn get_handle_of_entity_in_crosshair(&self) -> Option<i32> {
+        if self.pointer.is_null() {
+            return None;
+        }
+
+        let entity_index_pointer = (self.pointer as usize
+            + offsets::client::C_CSPlayerPawnBase::m_iIDEntIndex)
+            as *const i32;
+        if entity_index_pointer.is_null() {
+            return None;
+        }
+        Some(unsafe { entity_index_pointer.read() })
     }
 }
 
@@ -163,8 +178,9 @@ impl CameraServices {
         if fov_pointer.is_null() {
             return;
         }
+
         unsafe {
-            *fov_pointer = desired_fov;
+            fov_pointer.write(desired_fov);
         }
     }
 
@@ -181,6 +197,6 @@ impl CameraServices {
             return None;
         }
 
-        Some(unsafe { *fov_pointer })
+        Some(unsafe { fov_pointer.read() })
     }
 }

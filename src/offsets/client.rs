@@ -1,5 +1,9 @@
 pub const dwLocalPlayerPawn: usize = 0x17C9468;
 
+pub mod C_BaseEntity {
+    pub const m_fFlags: usize = 0x3CC; // uint32
+}
+
 pub mod C_BasePlayerPawn {
     pub const m_pCameraServices: usize = 0x1130; // CPlayer_CameraServices*
 }

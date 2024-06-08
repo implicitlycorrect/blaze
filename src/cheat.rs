@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{config::*, context::CheatContext, interfaces, offsets};
+use crate::{config::*, context::CheatContext, interfaces, offsets, sdk::LocalPlayer};
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -57,7 +57,7 @@ pub fn initialize() -> Result<()> {
 }
 
 pub fn run() {
-    let mut time_since_last_shot: Instant = Instant::now() - Duration::from_secs(1);
+    let mut last_shot_time: Instant = Instant::now() - Duration::from_secs(1);
 
     while !keyboard::detect_keypress(EXIT_KEY) {
         std::thread::sleep(Duration::from_millis(1));
@@ -80,54 +80,93 @@ pub fn run() {
         };
 
         // FOV CHANGER
-        const DESIRED_FOV: u32 = 120;
+        fov_changer(&local_player);
 
-        if !local_player.get_is_scoped().unwrap_or_default() {
-            if let Some(camera_services) = local_player.get_camera_services() {
-                if let Some(current_fov) = camera_services.get_fov() {
-                    if current_fov != DESIRED_FOV {
-                        camera_services.set_fov(DESIRED_FOV);
-                    }
+        // TRIGGERBOT
+        if keyboard::detect_keypress(TRIGGERBOT_KEY) {
+            if let Some(time_shot) = triggerbot(&context, &local_player, last_shot_time) {
+                last_shot_time = time_shot;
+            }
+        }
+
+        // BHOP
+        bhop(&context, &local_player);
+    }
+}
+
+fn fov_changer(local_player: &LocalPlayer) {
+    if !local_player.get_is_scoped().unwrap_or_default() {
+        if let Some(camera_services) = local_player.get_camera_services() {
+            if let Some(current_fov) = camera_services.get_fov() {
+                if current_fov != DESIRED_FOV {
+                    camera_services.set_fov(DESIRED_FOV);
                 }
             }
         }
+    }
+}
 
-        // TRIGGERBOT
-        if !keyboard::detect_keypress(TRIGGERBOT_KEY) {
-            continue;
+fn triggerbot(
+    context: &CheatContext,
+    local_player: &LocalPlayer,
+    last_shot_instant: Instant,
+) -> Option<Instant> {
+    let crosshair_entity_handle = local_player.get_handle_of_entity_in_crosshair()?;
+    if crosshair_entity_handle <= 0 {
+        return None;
+    }
+
+    let attack_pointer =
+        (context.client_module.base_address + offsets::buttons::attack) as *mut i32;
+    if attack_pointer.is_null() {
+        return None;
+    }
+
+    unsafe {
+        if *attack_pointer == 257 {
+            *attack_pointer = 256;
         }
+    }
 
-        let attack_pointer =
-            (context.client_module.base_address + offsets::buttons::attack) as *mut i32;
-        if attack_pointer.is_null() {
-            continue;
-        }
+    let now = Instant::now();
 
-        let Some(crosshair_entity_handle) = local_player.get_handle_of_entity_in_crosshair() else {
-            continue;
-        };
+    let should_shoot = now.duration_since(last_shot_instant) > Duration::from_millis(14 * 3)
+        && unsafe { *attack_pointer } <= 256;
 
-        if crosshair_entity_handle <= 0 {
-            continue;
-        }
+    if !should_shoot {
+        return None;
+    }
 
-        let now = Instant::now();
+    let _ = context
+        .engine_client_interface
+        .execute_client_command("+attack;-attack");
 
-        let should_shoot = now.duration_since(time_since_last_shot) > Duration::from_millis(16)
-            && unsafe { *attack_pointer } <= 256;
+    Some(now)
+}
 
-        if should_shoot {
-            let _ = context
-                .engine_client_interface
-                .execute_client_command("+attack;-attack");
-            time_since_last_shot = now;
-        }
+fn bhop(context: &CheatContext, local_player: &LocalPlayer) {
+    let Some(on_ground) = local_player.get_on_ground() else {
+        return;
+    };
 
-        // +attack;-attack; fix !!!
-        unsafe {
-            if *attack_pointer == 257 {
-                *attack_pointer = 256;
-            }
+    let space_held = keyboard::detect_keypress(BHOP_KEY);
+    let should_jump = space_held && on_ground;
+    if !should_jump {
+        return;
+    }
+
+    let _ = context
+        .engine_client_interface
+        .execute_client_command("+jump;-jump");
+    
+    let jump_pointer = (context.client_module.base_address + offsets::buttons::jump) as *mut i32;
+    if jump_pointer.is_null() {
+        return;
+    }
+
+    unsafe {
+        if *jump_pointer == 257 {
+            *jump_pointer = 256;
         }
     }
 }

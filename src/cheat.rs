@@ -102,28 +102,28 @@ fn triggerbot(
     local_player: &LocalPlayer,
     last_shot_instant: Instant,
 ) -> bool {
-    let crosshair_entity_handle = local_player
-        .get_handle_of_entity_in_crosshair()
-        .unwrap_or_default();
-    if crosshair_entity_handle <= 0 {
-        return false;
-    }
+    unsafe {
+        let attack_pointer = (context.client.base_address + offsets::buttons::attack) as *mut i32;
+        if attack_pointer.is_null() {
+            return false;
+        }
 
-    let attack_pointer = (context.client.base_address + offsets::buttons::attack) as *mut i32;
-    if attack_pointer.is_null() {
-        return false;
-    }
-
-    let should_shoot = unsafe {
+        // +attack;-attack fix
         if *attack_pointer == 257 {
             *attack_pointer = 256;
         }
 
-        *attack_pointer <= 256
-            && Instant::now().duration_since(last_shot_instant) > Duration::from_millis(14 * 3)
-    };
+        if *attack_pointer > 256
+            || Instant::now().duration_since(last_shot_instant) < TRIGGERBOT_TIME_BETWEEN_SHOTS
+        {
+            return false;
+        }
+    }
 
-    if !should_shoot {
+    let crosshair_entity_handle = local_player
+        .get_handle_of_entity_in_crosshair()
+        .unwrap_or_default();
+    if crosshair_entity_handle <= 0 {
         return false;
     }
 

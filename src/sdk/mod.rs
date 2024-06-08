@@ -1,8 +1,4 @@
-use std::ffi::{c_char, CString};
-
-use anyhow::{anyhow, Result};
-use toy_arms::{cast, GameObject};
-use toy_arms_derive::GameObject;
+use cheatlib::*;
 
 use super::offsets;
 
@@ -13,50 +9,17 @@ pub fn get_virtual_function(base: *mut usize, index: usize) -> *mut usize {
     }
 }
 
-#[derive(GameObject)]
 pub struct LocalPlayer {
     pointer: *const usize,
 }
 
 impl LocalPlayer {
-    pub fn get_health(&self) -> Option<u32> {
-        if self.pointer.is_null() {
+    pub unsafe fn from_raw(pointer: *mut usize) -> Option<*mut LocalPlayer> {
+        let local_player_pointer = pointer as *mut LocalPlayer;
+        if local_player_pointer.is_null() {
             return None;
         }
-
-        Some(unsafe {
-            *cast!(
-                self.pointer as usize + offsets::client::C_BaseEntity::m_iHealth,
-                u32
-            )
-        })
-    }
-
-    pub fn get_team_number(&self) -> Option<u32> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe {
-            *cast!(
-                self.pointer as usize + offsets::client::C_BaseEntity::m_iTeamNum,
-                u32
-            )
-        })
-    }
-
-    pub fn get_weapon_services(&self) -> Option<WeaponServices> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe {
-            WeaponServices::from_raw(
-                (self.pointer as usize + offsets::client::C_BasePlayerPawn::m_pWeaponServices)
-                    as *const usize,
-            )?
-            .read()
-        })
+        Some(local_player_pointer)
     }
 
     pub fn get_is_scoped(&self) -> Option<bool> {
@@ -64,12 +27,13 @@ impl LocalPlayer {
             return None;
         }
 
-        Some(unsafe {
-            *cast!(
-                self.pointer as usize + offsets::client::C_CSPlayerPawn::m_bIsScoped,
-                bool
-            )
-        })
+        let is_scoped_pointer =
+            (self.pointer as usize + offsets::client::C_CSPlayerPawn::m_bIsScoped) as *const bool;
+        if is_scoped_pointer.is_null() {
+            return None;
+        }
+
+        Some(unsafe { *is_scoped_pointer })
     }
 
     pub fn get_camera_services(&self) -> Option<CameraServices> {
@@ -91,12 +55,13 @@ impl LocalPlayer {
             return None;
         }
 
-        let entity_index_pointer =
-            self.pointer as usize + offsets::client::C_CSPlayerPawnBase::m_iIDEntIndex;
-        if entity_index_pointer == 0 {
+        let entity_index_pointer = (self.pointer as usize
+            + offsets::client::C_CSPlayerPawnBase::m_iIDEntIndex)
+            as *const i32;
+        if entity_index_pointer.is_null() {
             return None;
         }
-        Some(unsafe { *cast!(entity_index_pointer, i32) })
+        Some(unsafe { *entity_index_pointer })
     }
 }
 
@@ -172,68 +137,50 @@ impl CEngineClient {
 
         Ok(())
     }
-
-    pub fn force_full_update(&self) -> Result<()> {
-        self.execute_client_command("record x; stop")
-    }
 }
 
-#[derive(GameObject)]
-pub struct WeaponServices {
-    pointer: *const usize,
-}
-
-impl WeaponServices {
-    pub fn get_weapon_size(&self) -> Option<usize> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe { *cast!(self.pointer as usize + 0x50, usize) })
-    }
-
-    pub fn get_weapon_handle_at_index(&self, index: usize) -> Option<i32> {
-        if self.pointer.is_null() {
-            return None;
-        }
-
-        Some(unsafe {
-            *cast!(
-                (self.pointer as usize + offsets::client::CPlayer_WeaponServices::m_hActiveWeapon)
-                    + 0x4 * index,
-                i32
-            )
-        })
-    }
-}
-
-#[derive(GameObject)]
 pub struct CameraServices {
     pointer: *const usize,
 }
 
 impl CameraServices {
+    pub unsafe fn from_raw(pointer: *const usize) -> Option<*const CameraServices> {
+        let camera_services_pointer = pointer as *const CameraServices;
+        if camera_services_pointer.is_null() {
+            return None;
+        }
+        Some(camera_services_pointer)
+    }
+
     pub fn set_fov(&self, desired_fov: u32) {
         if self.pointer.is_null() {
             return;
         }
 
+        let fov_pointer = (self.pointer as usize
+            + offsets::client::CCSPlayerBase_CameraServices::m_iFOV)
+            as *mut u32;
+        if fov_pointer.is_null() {
+            return;
+        }
         unsafe {
-            let current_fov = cast!(mut self.pointer as usize + offsets::client::CCSPlayerBase_CameraServices::m_iFOV, u32);
-            *current_fov = desired_fov;
+            *fov_pointer = desired_fov;
         }
     }
 
-    pub fn get_fov(&self) -> u32 {
+    pub fn get_fov(&self) -> Option<u32> {
         if self.pointer.is_null() {
-            return 0;
+            return None;
         }
 
-        unsafe {
-            *cast!(
-                self.pointer as usize + offsets::client::CCSPlayerBase_CameraServices::m_iFOV,
-                u32
-            )
+        let fov_pointer = (self.pointer as usize
+            + offsets::client::CCSPlayerBase_CameraServices::m_iFOV)
+            as *const u32;
+
+        if fov_pointer.is_null() {
+            return None;
         }
+
+        Some(unsafe { *fov_pointer })
     }
 }

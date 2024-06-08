@@ -6,22 +6,22 @@ use crate::{
 };
 
 pub struct CheatContext {
-    pub client_module: Module,
-    pub engine2_module: Module,
-    pub engine_client_interface: CEngineClient,
+    pub client: Module,
+    pub engine: Module,
+    pub cengine_client: CEngineClient,
 }
 
 impl CheatContext {
     pub fn default() -> Self {
         Self {
-            client_module: Module::default(),
-            engine2_module: Module::default(),
-            engine_client_interface: CEngineClient::default(),
+            client: Module::default(),
+            engine: Module::default(),
+            cengine_client: CEngineClient::default(),
         }
     }
 
     pub fn get_local_player(&self) -> Option<LocalPlayer> {
-        match self.client_module.read(offsets::client::dwLocalPlayerPawn) {
+        match self.client.read(offsets::client::dwLocalPlayerPawn) {
             Ok(local_player_raw_pointer) => {
                 Some(unsafe { LocalPlayer::from_raw(local_player_raw_pointer)?.read() })
             }

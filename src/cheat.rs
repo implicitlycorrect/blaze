@@ -49,7 +49,7 @@ pub fn initialize() -> Result<()> {
 }
 
 pub fn run() {
-    let mut last_shot_time: Instant = Instant::now() - Duration::from_secs(1);
+    let mut last_shot_time = Instant::now() - Duration::from_secs(1);
 
     while !keyboard::detect_keypress(EXIT_KEY) {
         std::thread::sleep(Duration::from_millis(1));

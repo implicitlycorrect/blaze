@@ -9,21 +9,6 @@ pub fn get_virtual_function(base: *mut usize, index: usize) -> *mut usize {
     }
 }
 
-pub struct CSource2Client {
-    pub base: *mut usize,
-}
-
-unsafe impl Send for CSource2Client {}
-unsafe impl Sync for CSource2Client {}
-
-impl CSource2Client {
-    pub fn default() -> Self {
-        Self {
-            base: std::ptr::null_mut(),
-        }
-    }
-}
-
 pub struct CEngineClient {
     pub base: *mut usize,
 }

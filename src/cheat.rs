@@ -31,14 +31,6 @@ pub fn initialize() -> Result<()> {
         context.engine2_module.base_address
     );
 
-    let Some(client_interface) = interfaces::get_interface(
-        interfaces::get_factory(&context.client_module).unwrap(),
-        "Source2Client002",
-    ) else {
-        return Err(anyhow!("Failed to get client.Source2Client002 interface"));
-    };
-    context.client_interface.base = client_interface as *mut usize;
-
     let Some(engine_client_interface) = interfaces::get_interface(
         interfaces::get_factory(&context.engine2_module).unwrap(),
         "Source2EngineToClient001",
@@ -158,7 +150,7 @@ fn bhop(context: &CheatContext, local_player: &LocalPlayer) {
     let _ = context
         .engine_client_interface
         .execute_client_command("+jump;-jump");
-    
+
     let jump_pointer = (context.client_module.base_address + offsets::buttons::jump) as *mut i32;
     if jump_pointer.is_null() {
         return;

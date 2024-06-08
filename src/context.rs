@@ -2,13 +2,12 @@ use cheatlib::*;
 
 use crate::{
     offsets,
-    sdk::{CEngineClient, CSource2Client, LocalPlayer},
+    sdk::{CEngineClient, LocalPlayer},
 };
 
 pub struct CheatContext {
     pub client_module: Module,
     pub engine2_module: Module,
-    pub client_interface: CSource2Client,
     pub engine_client_interface: CEngineClient,
 }
 
@@ -17,7 +16,6 @@ impl CheatContext {
         Self {
             client_module: Module::default(),
             engine2_module: Module::default(),
-            client_interface: CSource2Client::default(),
             engine_client_interface: CEngineClient::default(),
         }
     }

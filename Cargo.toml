@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 lto = true
 
 [dependencies]
-cheatlib = { path = "../cheatlib", features = [
+cheatlib = { git = "https://github.com/implicitlycorrect/cheatlib", features = [
     "console",
     "internal"
 ] }

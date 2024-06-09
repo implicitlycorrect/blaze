@@ -15,6 +15,12 @@ impl GameObject for LocalPlayer {
 }
 
 impl LocalPlayer {
+    pub fn empty() -> Self {
+        Self {
+            pointer: ptr::null_mut(),
+        }
+    }
+
     pub fn set_flash_duration(&self, duration: f32) -> Result<()> {
         unsafe {
             self.set_at(

@@ -25,23 +25,17 @@ impl Interface for CEngineClient {
 
 impl CEngineClient {
     pub fn get_is_in_game(&self) -> Result<bool> {
-        todo!("doesn't work for debug builds?")
+        if cfg!(debug_assertions) {
+            return Ok(true);
+        }
 
-        /*
         type GetIsInGame = unsafe extern "thiscall" fn(*mut usize) -> bool;
-        Ok(unsafe {
-            mem::transmute::<*mut usize, GetIsInGame>(self.get_virtual_function(34)?)(self.base)
-        })
-        */
+        Ok(unsafe { (self.get_virtual_function::<GetIsInGame>(34)?)(self.base) })
     }
 
     pub fn get_is_connected(&self) -> Result<bool> {
         type GetIsConnectedFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
-        Ok(unsafe {
-            mem::transmute::<*mut usize, GetIsConnectedFn>(self.get_virtual_function(35)?)(
-                self.base,
-            )
-        })
+        Ok(unsafe { (self.get_virtual_function::<GetIsConnectedFn>(35)?)(self.base) })
     }
 
     pub fn execute_client_command(&self, command: &str) -> Result<()> {
@@ -49,7 +43,7 @@ impl CEngineClient {
         unsafe {
             let command = CString::new(command).unwrap();
             let command_pointer = command.as_ptr();
-            mem::transmute::<*mut usize, ExecuteClientCmdFn>(self.get_virtual_function(43)?)(
+            (self.get_virtual_function::<ExecuteClientCmdFn>(43)?)(
                 self.base,
                 0,
                 command_pointer,

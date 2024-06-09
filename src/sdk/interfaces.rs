@@ -7,21 +7,47 @@ use std::{
 pub trait Interface {
     fn get_base_address(&self) -> *mut usize;
 
-    fn get_virtual_function(&self, index: usize) -> Result<*mut usize> {
+    fn get_virtual_function<TVirtualFunction>(&self, index: usize) -> Result<TVirtualFunction>
+    where
+        TVirtualFunction: Sized,
+    {
         unsafe {
             let base_address = self.get_base_address();
             if base_address.is_null() {
-                return Err(anyhow!("interface points to null"));
+                return Err(anyhow!("Base address of interface is null"));
             }
+
             let vtable = *base_address as *mut usize;
             if vtable.is_null() {
-                return Err(anyhow!("vtable points to null"));
+                return Err(anyhow!(
+                    "Virtual table (vtable) at {:p} is null",
+                    base_address
+                ));
             }
-            let function_ptr = vtable.add(index).read() as *mut usize;
-            if function_ptr.is_null() {
-                return Err(anyhow!("function points to null"));
+
+            let function_pointer = vtable.add(index).read() as *mut TVirtualFunction;
+            if function_pointer.is_null() {
+                return Err(anyhow!(
+                    "Function pointer at {:p} (index {}) in vtable at {:p} is null",
+                    function_pointer,
+                    index,
+                    base_address
+                ));
             }
-            Ok(function_ptr)
+
+            if !function_pointer.is_aligned() {
+                return Err(anyhow!(
+                    "Function pointer at {:p} (index {}) in vtable at {:p} is not aligned with TVirtualFunction",
+                    function_pointer,
+                    index,
+                    base_address
+                ));
+            }
+
+            let function = std::mem::transmute_copy::<*mut TVirtualFunction, TVirtualFunction>(
+                &function_pointer,
+            );
+            Ok(function)
         }
     }
 

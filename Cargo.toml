@@ -1,7 +1,13 @@
 [package]
 name = "blaze"
 version = "0.1.0"
+authors = ["implicitlycorrect"]
 edition = "2021"
+description = "Internal CS2 Cheat Base in Rust using the cheatlib crate"
+readme = "README.md"
+homepage = "https://github.com/implicitlycorrect/blaze"
+repository = "https://github.com/implicitlycorrect/blaze"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib"]
@@ -14,3 +20,5 @@ strip = "symbols"
 
 [dependencies]
 cheatlib = { git = "https://github.com/implicitlycorrect/cheatlib" }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"

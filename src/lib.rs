@@ -15,6 +15,8 @@ use sdk::Interface;
 use crate::{config::Config, context::Context};
 
 fn main() -> Result<()> {
+    set_console_title("Blaze");
+
     let config = Config::from_file("config.toml").unwrap_or_default();
     println!("loaded config: {:#?}", config);
 

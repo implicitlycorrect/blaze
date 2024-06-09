@@ -4,7 +4,7 @@ mod features;
 mod offsets;
 mod sdk;
 
-use std::{process::Stdio, time::Duration};
+use std::time::Duration;
 
 use cheatlib::*;
 use features::{

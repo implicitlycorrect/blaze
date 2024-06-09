@@ -1,4 +1,6 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+use crate::context::Context;
 
 use super::*;
 
@@ -15,13 +17,21 @@ impl Default for Triggerbot {
 }
 
 impl Feature for Triggerbot {
+    fn get_name(&self) -> &str {
+        "Triggerbot"
+    }
+
+    fn get_is_enabled(&self, config: &Config) -> bool {
+        config.features.triggerbot.enabled
+    }
+
     fn run(&mut self, context: &Context) -> cheatlib::Result<()> {
-        if !keyboard::detect_keypress(context.config.triggerbot_key) {
+        if !keyboard::detect_keypress(context.config.features.triggerbot.key) {
             return Ok(());
         }
 
         if Instant::now().duration_since(self.last_shot_time)
-            < context.config.triggerbot_time_between_shots
+            < Duration::from_millis(context.config.features.triggerbot.time_between_shots_ms)
         {
             return Ok(());
         }

@@ -30,14 +30,14 @@ impl Button {
         if self.get_is_down()? {
             return Ok(());
         }
-        unsafe { self.set_self::<i32>(BUTTON_STATE_DOWN) }
+        unsafe { self.set_self(BUTTON_STATE_DOWN) }
     }
 
     pub fn up(&self) -> Result<()> {
         if self.get_is_up()? {
             return Ok(());
         }
-        unsafe { self.set_self::<i32>(BUTTON_STATE_UP) }
+        unsafe { self.set_self(BUTTON_STATE_UP) }
     }
 }
 

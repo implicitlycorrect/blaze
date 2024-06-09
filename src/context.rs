@@ -15,6 +15,7 @@ impl Context {
         let client = Module::from_name("client.dll")?;
         let engine = Module::from_name("engine2.dll")?;
         let cengine_client = CEngineClient::create(&engine)?;
+
         Ok(Self {
             config,
             local_player: LocalPlayer::empty(),

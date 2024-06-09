@@ -1,34 +1,28 @@
 use cheatlib::*;
 
-use crate::{
-    offsets,
-    sdk::{CEngineClient, LocalPlayer},
-};
+use crate::{offsets, sdk::*};
 
-pub struct CheatContext {
+pub(crate) struct Context {
     pub client: Module,
     pub engine: Module,
     pub cengine_client: CEngineClient,
 }
 
-impl CheatContext {
-    pub fn default() -> Self {
-        Self {
-            client: Module::default(),
-            engine: Module::default(),
-            cengine_client: CEngineClient::default(),
-        }
+impl Context {
+    pub fn create() -> Result<Self> {
+        let client = Module::from_name("client.dll")?;
+        let engine = Module::from_name("engine2.dll")?;
+        let cengine_client = CEngineClient::create(&engine)?;
+        Ok(Self {
+            client,
+            engine,
+            cengine_client,
+        })
     }
 
-    pub fn get_local_player(&self) -> Option<LocalPlayer> {
-        match self.client.read(offsets::client::dwLocalPlayerPawn) {
-            Ok(local_player_raw_pointer) => {
-                Some(unsafe { LocalPlayer::from_raw(local_player_raw_pointer)?.read() })
-            }
-            _ => None,
-        }
+    pub fn get_local_player(&self) -> Result<LocalPlayer> {
+        let local_player_pointer =
+            LocalPlayer::from_raw(self.client.base_address + offsets::client::dwLocalPlayerPawn)?;
+        Ok(unsafe { local_player_pointer.read() })
     }
 }
-
-unsafe impl Sync for CheatContext {}
-unsafe impl Send for CheatContext {}

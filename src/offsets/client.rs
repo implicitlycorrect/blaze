@@ -10,6 +10,7 @@ pub mod C_BasePlayerPawn {
 
 pub mod C_CSPlayerPawnBase {
     pub const m_iIDEntIndex: usize = 0x13A8; // CEntityIndex
+    pub const m_flFlashDuration: usize = 0x135C; // float32
 }
 
 pub mod C_CSPlayerPawn {

@@ -2,7 +2,7 @@ use cheatlib::*;
 
 use crate::{offsets, sdk::*};
 
-pub(crate) struct Context {
+pub struct Context {
     pub client: Module,
     pub engine: Module,
     pub cengine_client: CEngineClient,

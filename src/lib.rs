@@ -10,7 +10,7 @@ use cheatlib::*;
 use features::{
     bunnyhop::Bunnyhop, fov_changer::FovChanger, no_flash::NoFlash, triggerbot::Triggerbot, Feature,
 };
-use sdk::{GameObject, Interface};
+use sdk::Interface;
 
 use crate::{config::Config, context::Context};
 
@@ -36,14 +36,12 @@ fn main() -> Result<()> {
     while !keyboard::detect_keypress(context.config.exit_key) {
         std::thread::sleep(Duration::from_millis(1));
 
-        let is_in_game = context.cengine_client.get_is_in_game().unwrap_or_default();
-
         let is_connected = context
             .cengine_client
             .get_is_connected()
             .unwrap_or_default();
 
-        if !is_in_game || !is_connected {
+        if !is_connected {
             continue;
         }
 

@@ -24,9 +24,8 @@ impl Interface for CEngineClient {
 }
 
 impl CEngineClient {
+    /// Doesn't work under unknown conditions
     pub fn get_is_in_game(&self) -> Result<bool> {
-        todo!("only works under specific conditions");
-
         type GetIsInGame = unsafe extern "thiscall" fn(*mut usize) -> bool;
         Ok(unsafe { (self.get_virtual_function::<GetIsInGame>(34)?)(self.base) })
     }

@@ -4,7 +4,7 @@ mod features;
 mod offsets;
 mod sdk;
 
-use std::time::Duration;
+use std::{process::Stdio, time::Duration};
 
 use cheatlib::*;
 use features::{
@@ -36,12 +36,21 @@ fn main() -> Result<()> {
     while !keyboard::detect_keypress(context.config.exit_key) {
         std::thread::sleep(Duration::from_millis(1));
 
+        let is_in_game =
+            cfg!(debug_assertions) || context.cengine_client.get_is_in_game().unwrap_or_default();
+
         let is_connected = context
             .cengine_client
             .get_is_connected()
             .unwrap_or_default();
 
-        if !is_connected {
+        if !is_in_game || !is_connected {
+            // weird CEngineClient get_is_in_game fix for release build
+            #[cfg(not(debug_assertions))]
+            {
+                println!("in game: {is_in_game} | connected: {is_connected}");
+                std::thread::sleep(Duration::from_secs(5));
+            }
             continue;
         }
 

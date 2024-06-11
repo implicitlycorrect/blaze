@@ -12,6 +12,14 @@ impl Feature for NoFlash {
     }
 
     fn run(&mut self, context: &Context) -> cheatlib::Result<()> {
-        context.local_player.set_flash_duration(0f32)
+        context.get_local_player()?.set_flash_duration(0f32)
+    }
+
+    fn undo(&mut self, context: &Context) -> Result<()> {
+        const DEFAULT_FLASH_DURATION: f32 = 4.87f32;
+
+        context
+            .get_local_player()?
+            .set_flash_duration(DEFAULT_FLASH_DURATION)
     }
 }

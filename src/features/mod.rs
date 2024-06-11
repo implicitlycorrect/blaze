@@ -11,4 +11,5 @@ pub trait Feature {
     fn get_name(&self) -> &str;
     fn get_is_enabled(&self, config: &Config) -> bool;
     fn run(&mut self, context: &Context) -> Result<()>;
+    fn undo(&mut self, context: &Context) -> Result<()>;
 }

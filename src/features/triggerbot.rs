@@ -37,7 +37,7 @@ impl Feature for Triggerbot {
         }
 
         let crosshair_entity_handle = context
-            .local_player
+            .get_local_player()?
             .get_handle_of_entity_in_crosshair()
             .unwrap_or_default();
         if crosshair_entity_handle <= 0 {
@@ -54,5 +54,9 @@ impl Feature for Triggerbot {
             }
             Err(error) => Err(error),
         }
+    }
+
+    fn undo(&mut self, _context: &Context) -> Result<()> {
+        Ok(())
     }
 }

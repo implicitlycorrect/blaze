@@ -4,7 +4,6 @@ use crate::{config::Config, offsets, sdk::*};
 
 pub struct Context {
     pub config: Config,
-    pub local_player: LocalPlayer,
     pub client: Module,
     pub engine: Module,
     pub cengine_client: CEngineClient,
@@ -18,7 +17,6 @@ impl Context {
 
         Ok(Self {
             config,
-            local_player: LocalPlayer::empty(),
             client,
             engine,
             cengine_client,

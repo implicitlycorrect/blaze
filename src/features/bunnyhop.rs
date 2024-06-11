@@ -12,11 +12,15 @@ impl Feature for Bunnyhop {
     }
 
     fn run(&mut self, context: &Context) -> cheatlib::Result<()> {
-        let on_ground = context.local_player.get_on_ground()?;
+        let on_ground = context.get_local_player()?.get_on_ground()?;
         let jump_held = keyboard::detect_keypress(context.config.features.bunnyhop.jump_key);
         if !jump_held || !on_ground {
             return Ok(());
         }
         context.cengine_client.execute_client_command("+jump;-jump")
+    }
+
+    fn undo(&mut self, _context: &Context) -> Result<()> {
+        Ok(())
     }
 }

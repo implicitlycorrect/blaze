@@ -24,15 +24,14 @@ impl Interface for CEngineClient {
 }
 
 impl CEngineClient {
-    /// Doesn't work under unknown conditions
     pub fn get_is_in_game(&self) -> Result<bool> {
         type GetIsInGame = unsafe extern "thiscall" fn(*mut usize) -> bool;
-        Ok(unsafe { (self.get_virtual_function::<GetIsInGame>(34)?)(self.base) })
+        Ok(unsafe { (self.get_virtual_function::<GetIsInGame>(35)?)(self.base) })
     }
 
     pub fn get_is_connected(&self) -> Result<bool> {
         type GetIsConnectedFn = unsafe extern "thiscall" fn(*mut usize) -> bool;
-        Ok(unsafe { (self.get_virtual_function::<GetIsConnectedFn>(35)?)(self.base) })
+        Ok(unsafe { (self.get_virtual_function::<GetIsConnectedFn>(36)?)(self.base) })
     }
 
     pub fn execute_client_command(&self, command: &str) -> Result<()> {

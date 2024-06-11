@@ -1,2 +1,2 @@
-pub const attack: usize = 0x17C1CB0;
-pub const jump: usize = 0x17C21C0;
+pub const attack: usize = 0x17C3CB0;
+pub const jump: usize = 0x17C41C0;

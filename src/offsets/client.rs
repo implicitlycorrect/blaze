@@ -1,4 +1,4 @@
-pub const dwLocalPlayerPawn: usize = 0x17C9468;
+pub const dwLocalPlayerPawn: usize = 0x17CB468;
 
 pub mod C_BaseEntity {
     pub const m_fFlags: usize = 0x3CC; // uint32

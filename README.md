@@ -14,7 +14,12 @@ If you want to add a feature or fix any issues, please open a pull request!
 ## Note:
 To use bunnyhop feature you might have to unbind your jump key due to how its implemented.
 
-## Knowns issues:
-- Crash after loading into a new game (after having played one).
+## Known issues:
+- Crashes after loading into a new match (after having played one).
 
-Credit to [Ion CS:GO Cheat](https://github.com/zorftw/Ion), [uc](https://www.unknowncheats.me/forum/rust-language-/620533-cs2-internal-rust-cheat-base.html) and [toy-arms](https://github.com/pseuxide/toy-arms)
+## Credit to:
+[github - Ion CS:GO Cheat](https://github.com/zorftw/Ion)
+
+[github - toy-arms](https://github.com/pseuxide/toy-arms)
+
+[unknowncheats - CS2 Cheat Base in Rust](https://www.unknowncheats.me/forum/rust-language-/620533-cs2-internal-rust-cheat-base.html)

@@ -72,4 +72,4 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-dll_main!(main, true);
+dll_main!(main, true, true);
